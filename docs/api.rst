@@ -1178,6 +1178,19 @@ of :class:`enum.Enum`.
 
         Represents a link button.
 
+    .. attribute:: blurple
+
+        An alias for :attr:`primary`.
+    .. attribute:: grey
+
+        An alias for :attr:`secondary`.
+    .. attribute:: green
+
+        An alias for :attr:`success`.
+    .. attribute:: red
+
+        An alias for :attr:`danger`.
+
 .. class:: VoiceRegion
 
     Specifies the region a voice server belongs to.
