@@ -472,12 +472,20 @@ class Permissions(BaseFlags):
         return 1 << 32
 
     @flag_value
+    def manage_threads(self):
+        """:class:`bool`: Returns ``True`` if a user can manage threads.
+
+        .. versionadded:: 2.0
+        """
+        return 1 << 34
+
+    @flag_value
     def use_threads(self):
         """:class:`bool`: Returns ``True`` if a user can create and participate in public threads.
 
         .. versionadded:: 2.0
         """
-        return 1 << 33
+        return 1 << 35
 
     @flag_value
     def use_private_threads(self):
@@ -485,7 +493,7 @@ class Permissions(BaseFlags):
 
         .. versionadded:: 2.0
         """
-        return 1 << 34
+        return 1 << 36
 
 
 def augment_from_permissions(cls):
