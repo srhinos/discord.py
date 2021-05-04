@@ -35,7 +35,7 @@ class PermissionOverwrite(TypedDict):
     deny: str
 
 
-ChannelType = Literal[0, 1, 2, 3, 4, 5, 6, 11, 12, 13]
+ChannelType = Literal[0, 1, 2, 3, 4, 5, 6, 10, 11, 12, 13]
 
 
 class PartialChannel(TypedDict):
@@ -77,6 +77,10 @@ class _ThreadChannelOptional(PartialChannel, total=False):
     member_count: int
     thread_metadata: ThreadMetadata
     member: ThreadMember
+    owner_id: Snowflake
+    rate_limit_per_user: int
+    last_message_id: Optional[Snowflake]
+    last_pin_timestamp: str
 
 
 class GuildChannel(
