@@ -2220,6 +2220,24 @@ class Guild(Hashable):
         payload['max_age'] = 0
         return Invite(state=self._state, data=payload)
 
+   def ack(self):
+        """|coro|
+        Marks every message in this guild as read.
+        The user must not be a bot user.
+        .. deprecated:: 1.7
+        Raises
+        -------
+        HTTPException
+            Acking failed.
+        ClientException
+            You must not be a bot user.
+        """
+
+        state = self._state
+        if state.is_bot:
+            raise ClientException('Must not be a bot account to ack messages.')
+        return state.http.ack_guild(self.id)
+
     def audit_logs(
         self,
         *,

@@ -409,7 +409,7 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         count = 0
 
         minimum_time = int((time.time() - 14 * 24 * 60 * 60) * 1000.0 - 1420070400000) << 22
-        strategy = self.delete_messages if bulk else _single_delete_strategy
+        strategy = self.delete_messages if self._state.is_bot and bulk else _single_delete_strategy
 
         while True:
             try:
@@ -1421,6 +1421,82 @@ class DMChannel(discord.abc.Messageable, Hashable):
         base.send_tts_messages = False
         base.manage_messages = False
         return base
+
+    @utils.deprecated()
+    async def add_recipients(self, *recipients):
+        r"""|coro|
+        Adds recipients to this group.
+        A group can only have a maximum of 10 members.
+        Attempting to add more ends up in an exception. To
+        add a recipient to the group, you must have a relationship
+        with the user of type :attr:`RelationshipType.friend`.
+        .. deprecated:: 1.7
+        Parameters
+        -----------
+        \*recipients: :class:`User`
+            An argument list of users to add to this group.
+        Raises
+        -------
+        HTTPException
+            Adding a recipient to this group failed.
+        """
+
+        # TODO: wait for the corresponding WS event
+
+        req = self._state.http.add_group_recipient
+        for recipient in recipients:
+            await req(self.id, recipient.id)
+
+    @utils.deprecated()
+    async def remove_recipients(self, *recipients):
+        r"""|coro|
+        Removes recipients from this group.
+        .. deprecated:: 1.7
+        Parameters
+        -----------
+        \*recipients: :class:`User`
+            An argument list of users to remove from this group.
+        Raises
+        -------
+        HTTPException
+            Removing a recipient from this group failed.
+        """
+
+        # TODO: wait for the corresponding WS event
+
+        req = self._state.http.remove_group_recipient
+        for recipient in recipients:
+            await req(self.id, recipient.id)
+
+    @utils.deprecated()
+    async def edit(self, **fields):
+        """|coro|
+        Edits the group.
+        .. deprecated:: 1.7
+        Parameters
+        -----------
+        name: Optional[:class:`str`]
+            The new name to change the group to.
+            Could be ``None`` to remove the name.
+        icon: Optional[:class:`bytes`]
+            A :term:`py:bytes-like object` representing the new icon.
+            Could be ``None`` to remove the icon.
+        Raises
+        -------
+        HTTPException
+            Editing the group failed.
+        """
+
+        try:
+            icon_bytes = fields['icon']
+        except KeyError:
+            pass
+        else:
+            if icon_bytes is not None:
+                fields['icon'] = utils._bytes_to_base64_data(icon_bytes)
+
+        data = await self._state.http.edit_group(self.id, **fields)
+        self._update_group(data)
 
     def get_partial_message(self, message_id):
         """Creates a :class:`PartialMessage` from the message ID.

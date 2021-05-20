@@ -505,6 +505,10 @@ class _WebhookState:
             return self._parent._get_guild(guild_id)
         return None
 
+    @property
+    def is_bot(self):
+        return True
+
     def store_user(self, data):
         if self._parent is not None:
             return self._parent.store_user(data)
