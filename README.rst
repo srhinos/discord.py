@@ -20,6 +20,7 @@ Key Features
 - Proper rate limit handling.
 - 100% coverage of the supported Discord API.
 - Optimised in both speed and memory.
+- Selfbot compatible
 
 Installing
 ----------
