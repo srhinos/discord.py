@@ -608,6 +608,7 @@ class Message(Hashable):
         'pinned',
         'role_mentions',
         'type',
+        'call',
         'flags',
         'reactions',
         'reference',
