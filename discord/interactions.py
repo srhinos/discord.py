@@ -110,7 +110,11 @@ class Interaction:
 
     def _from_data(self, data: InteractionPayload):
         self.id = int(data['id'])
-        self.type = try_enum(InteractionType, data['type'])
+        try:
+            self.type = try_enum(InteractionType, data['type'])
+        except KeyError as e:
+            print(data)
+            raise(e)
         self.data = data.get('data')
         self.token = data['token']
         self.version = data['version']
