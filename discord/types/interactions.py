@@ -37,8 +37,11 @@ if TYPE_CHECKING:
     from .message import AllowedMentions, Message
 
 
+ApplicationCommandType = Literal[1, 2, 3]
+
 class _ApplicationCommandOptional(TypedDict, total=False):
     options: List[ApplicationCommandOption]
+    type: ApplicationCommandType
 
 
 class ApplicationCommand(_ApplicationCommandOptional):
@@ -53,7 +56,7 @@ class _ApplicationCommandOptionOptional(TypedDict, total=False):
     options: List[ApplicationCommandOption]
 
 
-ApplicationCommandOptionType = Literal[1, 2, 3, 4, 5, 6, 7, 8, 9]
+ApplicationCommandOptionType = Literal[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 
 class ApplicationCommandOption(_ApplicationCommandOptionOptional):
@@ -93,16 +96,48 @@ class GuildApplicationCommandPermissions(PartialGuildApplicationCommandPermissio
 InteractionType = Literal[1, 2, 3]
 
 
-class _ApplicationCommandInteractionDataOptionOptional(TypedDict, total=False):
-    value: ApplicationCommandOptionType
+class _ApplicationCommandInteractionDataOption(TypedDict):
+    name: str
+
+
+class _ApplicationCommandInteractionDataOptionSubcommand(_ApplicationCommandInteractionDataOption):
+    type: Literal[1, 2]
     options: List[ApplicationCommandInteractionDataOption]
 
 
-class ApplicationCommandInteractionDataOption(
-    _ApplicationCommandInteractionDataOptionOptional
-):
-    name: str
-    type: ApplicationCommandOptionType
+class _ApplicationCommandInteractionDataOptionString(_ApplicationCommandInteractionDataOption):
+    type: Literal[3]
+    value: str
+
+
+class _ApplicationCommandInteractionDataOptionInteger(_ApplicationCommandInteractionDataOption):
+    type: Literal[4]
+    value: int
+
+
+class _ApplicationCommandInteractionDataOptionBoolean(_ApplicationCommandInteractionDataOption):
+    type: Literal[5]
+    value: bool
+
+
+class _ApplicationCommandInteractionDataOptionSnowflake(_ApplicationCommandInteractionDataOption):
+    type: Literal[6, 7, 8, 9]
+    value: Snowflake
+
+
+class _ApplicationCommandInteractionDataOptionNumber(_ApplicationCommandInteractionDataOption):
+    type: Literal[10]
+    value: float
+
+
+ApplicationCommandInteractionDataOption = Union[
+    _ApplicationCommandInteractionDataOptionString,
+    _ApplicationCommandInteractionDataOptionInteger,
+    _ApplicationCommandInteractionDataOptionSubcommand,
+    _ApplicationCommandInteractionDataOptionBoolean,
+    _ApplicationCommandInteractionDataOptionSnowflake,
+    _ApplicationCommandInteractionDataOptionNumber,
+]
 
 
 class ApplicationCommandResolvedPartialChannel(TypedDict):
@@ -122,6 +157,8 @@ class ApplicationCommandInteractionDataResolved(TypedDict, total=False):
 class _ApplicationCommandInteractionDataOptional(TypedDict, total=False):
     options: List[ApplicationCommandInteractionDataOption]
     resolved: ApplicationCommandInteractionDataResolved
+    target_id: Snowflake
+    type: ApplicationCommandType
 
 
 class ApplicationCommandInteractionData(_ApplicationCommandInteractionDataOptional):
@@ -138,8 +175,11 @@ class ComponentInteractionData(_ComponentInteractionDataOptional):
     component_type: ComponentType
 
 
+InteractionData = Union[ApplicationCommandInteractionData, ComponentInteractionData]
+
+
 class _InteractionOptional(TypedDict, total=False):
-    data: Union[ApplicationCommandInteractionData, ComponentInteractionData]
+    data: InteractionData
     guild_id: Snowflake
     channel_id: Snowflake
     member: Member
@@ -182,8 +222,15 @@ class MessageInteraction(TypedDict):
     user: User
 
 
-class EditApplicationCommand(TypedDict):
-    name: str
+
+
+
+class _EditApplicationCommandOptional(TypedDict, total=False):
     description: str
     options: Optional[List[ApplicationCommandOption]]
+    type: ApplicationCommandType
+
+
+class EditApplicationCommand(_EditApplicationCommandOptional):
+    name: str
     default_permission: bool

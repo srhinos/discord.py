@@ -50,7 +50,7 @@ from collections.abc import Sequence
 from discord.backoff import ExponentialBackoff
 from discord.utils import MISSING
 
-log = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 __all__ = (
     'loop',
@@ -378,7 +378,7 @@ class Loop(Generic[LF]):
         Parameters
         ------------
         \*args
-            The arguments to to use.
+            The arguments to use.
         \*\*kwargs
             The keyword arguments to use.
         """

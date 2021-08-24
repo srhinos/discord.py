@@ -43,7 +43,7 @@ from .. import utils
 from ..errors import InvalidArgument, HTTPException, Forbidden, NotFound, DiscordServerError
 from ..message import Message
 from ..http import Route
-from ..object import Object
+from ..channel import PartialMessageable
 
 from .async_ import BaseWebhook, handle_message_parameters, _WebhookState
 
@@ -52,7 +52,7 @@ __all__ = (
     'SyncWebhookMessage',
 )
 
-log = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..file import File
@@ -117,7 +117,7 @@ class WebhookAdapter:
 
         if payload is not None:
             headers['Content-Type'] = 'application/json'
-            to_send = utils.to_json(payload)
+            to_send = utils._to_json(payload)
 
         if auth_token is not None:
             headers['Authorization'] = f'Bot {auth_token}'
@@ -142,13 +142,15 @@ class WebhookAdapter:
                     for p in multipart:
                         name = p['name']
                         if name == 'payload_json':
-                            to_send = { 'payload_json': p['value'] }
+                            to_send = {'payload_json': p['value']}
                         else:
                             file_data[name] = (p['filename'], p['value'], p['content_type'])
 
                 try:
-                    with session.request(method, url, data=to_send, files=file_data, headers=headers, params=params) as response:
-                        log.debug(
+                    with session.request(
+                        method, url, data=to_send, files=file_data, headers=headers, params=params
+                    ) as response:
+                        _log.debug(
                             'Webhook ID %s with %s %s has returned status code %s',
                             webhook_id,
                             method,
@@ -166,7 +168,7 @@ class WebhookAdapter:
                         remaining = response.headers.get('X-Ratelimit-Remaining')
                         if remaining == '0' and response.status_code != 429:
                             delta = utils._parse_ratelimit_header(response)
-                            log.debug(
+                            _log.debug(
                                 'Webhook ID %s has been pre-emptively rate limited, waiting %.2f seconds', webhook_id, delta
                             )
                             lock.delay_by(delta)
@@ -179,7 +181,7 @@ class WebhookAdapter:
                                 raise HTTPException(response, data)
 
                             retry_after: float = data['retry_after']  # type: ignore
-                            log.warning('Webhook ID %s is rate limited. Retrying in %.2f seconds', webhook_id, retry_after)
+                            _log.warning('Webhook ID %s is rate limited. Retrying in %.2f seconds', webhook_id, retry_after)
                             time.sleep(retry_after)
                             continue
 
@@ -346,8 +348,17 @@ class WebhookAdapter:
         return self.request(route, session=session)
 
 
-_context = threading.local()
-_context.adapter = WebhookAdapter()
+class _WebhookContext(threading.local):
+    adapter: Optional[WebhookAdapter] = None
+
+
+_context = _WebhookContext()
+
+
+def _get_webhook_adapter() -> WebhookAdapter:
+    if _context.adapter is None:
+        _context.adapter = WebhookAdapter()
+    return _context.adapter
 
 
 class SyncWebhookMessage(Message):
@@ -362,6 +373,8 @@ class SyncWebhookMessage(Message):
     .. versionadded:: 2.0
     """
 
+    _state: _WebhookState
+
     def edit(
         self,
         content: Optional[str] = MISSING,
@@ -370,7 +383,7 @@ class SyncWebhookMessage(Message):
         file: File = MISSING,
         files: List[File] = MISSING,
         allowed_mentions: Optional[AllowedMentions] = None,
-    ):
+    ) -> SyncWebhookMessage:
         """Edits the message.
 
         Parameters
@@ -403,8 +416,13 @@ class SyncWebhookMessage(Message):
             The length of ``embeds`` was invalid
         InvalidArgument
             There was no token associated with this webhook.
+
+        Returns
+        --------
+        :class:`SyncWebhookMessage`
+            The newly edited message.
         """
-        self._state._webhook.edit_message(
+        return self._state._webhook.edit_message(
             self.id,
             content=content,
             embeds=embeds,
@@ -494,7 +512,7 @@ class SyncWebhook(BaseWebhook):
         .. versionadded:: 2.0
     """
 
-    __slots__: Tuple[str, ...] = BaseWebhook.__slots__ + ('session',)
+    __slots__: Tuple[str, ...] = ('session',)
 
     def __init__(self, data: WebhookPayload, session: Session, token: Optional[str] = None, state=None):
         super().__init__(data, token, state)
@@ -621,7 +639,7 @@ class SyncWebhook(BaseWebhook):
         :class:`SyncWebhook`
             The fetched webhook.
         """
-        adapter: WebhookAdapter = _context.adapter
+        adapter: WebhookAdapter = _get_webhook_adapter()
 
         if prefer_auth and self.auth_token:
             data = adapter.fetch_webhook(self.id, self.auth_token, session=self.session)
@@ -659,7 +677,7 @@ class SyncWebhook(BaseWebhook):
         if self.token is None and self.auth_token is None:
             raise InvalidArgument('This webhook does not have a token associated with it')
 
-        adapter: WebhookAdapter = _context.adapter
+        adapter: WebhookAdapter = _get_webhook_adapter()
 
         if prefer_auth and self.auth_token:
             adapter.delete_webhook(self.id, token=self.auth_token, session=self.session, reason=reason)
@@ -674,7 +692,7 @@ class SyncWebhook(BaseWebhook):
         avatar: Optional[bytes] = MISSING,
         channel: Optional[Snowflake] = None,
         prefer_auth: bool = True,
-    ):
+    ) -> SyncWebhook:
         """Edits this Webhook.
 
         Parameters
@@ -702,6 +720,11 @@ class SyncWebhook(BaseWebhook):
         InvalidArgument
             This webhook does not have a token associated with it
             or it tried editing a channel without authentication.
+
+        Returns
+        --------
+        :class:`SyncWebhook`
+            The newly edited webhook.
         """
         if self.token is None and self.auth_token is None:
             raise InvalidArgument('This webhook does not have a token associated with it')
@@ -713,8 +736,9 @@ class SyncWebhook(BaseWebhook):
         if avatar is not MISSING:
             payload['avatar'] = utils._bytes_to_base64_data(avatar) if avatar is not None else None
 
-        adapter: WebhookAdapter = _context.adapter
+        adapter: WebhookAdapter = _get_webhook_adapter()
 
+        data: Optional[WebhookPayload] = None
         # If a channel is given, always use the authenticated endpoint
         if channel is not None:
             if self.auth_token is None:
@@ -722,20 +746,23 @@ class SyncWebhook(BaseWebhook):
 
             payload['channel_id'] = channel.id
             data = adapter.edit_webhook(self.id, self.auth_token, payload=payload, session=self.session, reason=reason)
-            self._update(data)
-            return
 
         if prefer_auth and self.auth_token:
             data = adapter.edit_webhook(self.id, self.auth_token, payload=payload, session=self.session, reason=reason)
-            self._update(data)
         elif self.token:
             data = adapter.edit_webhook_with_token(self.id, self.token, payload=payload, session=self.session, reason=reason)
-            self._update(data)
+
+        if data is None:
+            raise RuntimeError('Unreachable code hit: data was not assigned')
+
+        return SyncWebhook(data=data, session=self.session, token=self.auth_token, state=self._state)
 
     def _create_message(self, data):
         state = _WebhookState(self, parent=self._state)
-        channel = self.channel or Object(id=int(data['channel_id']))
-        return SyncWebhookMessage(data=data, state=state, channel=channel)
+        # state may be artificial (unlikely at this point...)
+        channel = self.channel or PartialMessageable(state=self._state, id=int(data['channel_id']))  # type: ignore
+        # state is artificial
+        return SyncWebhookMessage(data=data, state=state, channel=channel)  # type: ignore
 
     @overload
     def send(
@@ -873,7 +900,7 @@ class SyncWebhook(BaseWebhook):
             allowed_mentions=allowed_mentions,
             previous_allowed_mentions=previous_mentions,
         )
-        adapter: WebhookAdapter = _context.adapter
+        adapter: WebhookAdapter = _get_webhook_adapter()
         thread_id: Optional[int] = None
         if thread is not MISSING:
             thread_id = thread.id
@@ -921,7 +948,7 @@ class SyncWebhook(BaseWebhook):
         if self.token is None:
             raise InvalidArgument('This webhook does not have a token associated with it')
 
-        adapter: WebhookAdapter = _context.adapter
+        adapter: WebhookAdapter = _get_webhook_adapter()
         data = adapter.get_webhook_message(
             self.id,
             self.token,
@@ -940,7 +967,7 @@ class SyncWebhook(BaseWebhook):
         file: File = MISSING,
         files: List[File] = MISSING,
         allowed_mentions: Optional[AllowedMentions] = None,
-    ):
+    ) -> SyncWebhookMessage:
         """Edits a message owned by this webhook.
 
         This is a lower level interface to :meth:`WebhookMessage.edit` in case
@@ -995,8 +1022,8 @@ class SyncWebhook(BaseWebhook):
             allowed_mentions=allowed_mentions,
             previous_allowed_mentions=previous_mentions,
         )
-        adapter: WebhookAdapter = _context.adapter
-        adapter.edit_webhook_message(
+        adapter: WebhookAdapter = _get_webhook_adapter()
+        data = adapter.edit_webhook_message(
             self.id,
             self.token,
             message_id,
@@ -1005,6 +1032,7 @@ class SyncWebhook(BaseWebhook):
             multipart=params.multipart,
             files=params.files,
         )
+        return self._create_message(data)
 
     def delete_message(self, message_id: int):
         """Deletes a message owned by this webhook.
@@ -1029,7 +1057,7 @@ class SyncWebhook(BaseWebhook):
         if self.token is None:
             raise InvalidArgument('This webhook does not have a token associated with it')
 
-        adapter: WebhookAdapter = _context.adapter
+        adapter: WebhookAdapter = _get_webhook_adapter()
         adapter.delete_webhook_message(
             self.id,
             self.token,

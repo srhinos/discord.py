@@ -24,8 +24,8 @@ DEALINGS IN THE SOFTWARE.
 
 from __future__ import annotations
 
-from typing import Any, Optional, TYPE_CHECKING, overload
-from .utils import parse_time, _get_as_snowflake, _bytes_to_base64_data
+from typing import Any, Optional, TYPE_CHECKING
+from .utils import parse_time, _get_as_snowflake, _bytes_to_base64_data, MISSING
 from .enums import VoiceRegion
 from .guild import Guild
 
@@ -34,7 +34,10 @@ __all__ = (
 )
 
 if TYPE_CHECKING:
+    import datetime
     from .types.template import Template as TemplatePayload
+    from .state import ConnectionState
+    from .user import User
 
 
 class _FriendlyHttpAttributeErrorHelper:
@@ -78,7 +81,10 @@ class _PartialTemplateState:
     def _get_message(self, id):
         return None
 
-    async def query_members(self, **kwargs):
+    def _get_guild(self, id):
+        return self.__state._get_guild(id)
+
+    async def query_members(self, **kwargs: Any):
         return []
 
     def __getattr__(self, attr):
@@ -128,33 +134,35 @@ class Template:
         '_state',
     )
 
-    def __init__(self, *, state, data: TemplatePayload):
+    def __init__(self, *, state: ConnectionState, data: TemplatePayload) -> None:
         self._state = state
         self._store(data)
 
-    def _store(self, data: TemplatePayload):
-        self.code = data['code']
-        self.uses = data['usage_count']
-        self.name = data['name']
-        self.description = data['description']
+    def _store(self, data: TemplatePayload) -> None:
+        self.code: str = data['code']
+        self.uses: int = data['usage_count']
+        self.name: str = data['name']
+        self.description: Optional[str] = data['description']
         creator_data = data.get('creator')
-        self.creator = None if creator_data is None else self._state.store_user(creator_data)
+        self.creator: Optional[User] = None if creator_data is None else self._state.create_user(creator_data)
 
-        self.created_at = parse_time(data.get('created_at'))
-        self.updated_at = parse_time(data.get('updated_at'))
+        self.created_at: Optional[datetime.datetime] = parse_time(data.get('created_at'))
+        self.updated_at: Optional[datetime.datetime] = parse_time(data.get('updated_at'))
 
-        id = _get_as_snowflake(data, 'source_guild_id')
+        guild_id = int(data['source_guild_id'])
+        guild: Optional[Guild] = self._state._get_guild(guild_id)
 
-        guild = self._state._get_guild(id)
-
-        if guild is None and id:
+        self.source_guild: Guild
+        if guild is None:
             source_serialised = data['serialized_source_guild']
-            source_serialised['id'] = id
+            source_serialised['id'] = guild_id
             state = _PartialTemplateState(state=self._state)
-            guild = Guild(data=source_serialised, state=state)
+            # Guild expects a ConnectionState, we're passing a _PartialTemplateState
+            self.source_guild = Guild(data=source_serialised, state=state)  # type: ignore
+        else:
+            self.source_guild = guild
 
-        self.source_guild = guild
-        self.is_dirty = data.get('is_dirty', None)
+        self.is_dirty: Optional[bool] = data.get('is_dirty', None)
 
     def __repr__(self) -> str:
         return (
@@ -162,7 +170,7 @@ class Template:
             f' creator={self.creator!r} source_guild={self.source_guild!r} is_dirty={self.is_dirty}>'
         )
 
-    async def create_guild(self, name: str, region: Optional[VoiceRegion] = None, icon: Any = None):
+    async def create_guild(self, name: str, region: Optional[VoiceRegion] = None, icon: Any = None) -> Guild:
         """|coro|
 
         Creates a :class:`.Guild` using the template.
@@ -202,7 +210,7 @@ class Template:
         data = await self._state.http.create_from_template(self.code, name, region_value, icon)
         return Guild(data=data, state=self._state)
 
-    async def sync(self) -> None:
+    async def sync(self) -> Template:
         """|coro|
 
         Sync the template to the guild's current state.
@@ -212,6 +220,9 @@ class Template:
 
         .. versionadded:: 1.7
 
+        .. versionchanged:: 2.0
+            The template is no longer edited in-place, instead it is returned.
+
         Raises
         -------
         HTTPException
@@ -220,25 +231,22 @@ class Template:
             You don't have permissions to edit the template.
         NotFound
             This template does not exist.
+
+        Returns
+        --------
+        :class:`Template`
+            The newly edited template.
         """
 
         data = await self._state.http.sync_template(self.source_guild.id, self.code)
-        self._store(data)
+        return Template(state=self._state, data=data)
 
-    @overload
     async def edit(
         self,
         *,
-        name: Optional[str] = ...,
-        description: Optional[str] = ...,
-    ) -> None:
-        ...
-
-    @overload
-    async def edit(self) -> None:
-        ...
-
-    async def edit(self, **kwargs) -> None:
+        name: str = MISSING,
+        description: Optional[str] = MISSING,
+    ) -> Template:
         """|coro|
 
         Edit the template metadata.
@@ -248,12 +256,15 @@ class Template:
 
         .. versionadded:: 1.7
 
+        .. versionchanged:: 2.0
+            The template is no longer edited in-place, instead it is returned.
+
         Parameters
         ------------
-        name: Optional[:class:`str`]
+        name: :class:`str`
             The template's new name.
         description: Optional[:class:`str`]
-            The template's description.
+            The template's new description.
 
         Raises
         -------
@@ -263,9 +274,21 @@ class Template:
             You don't have permissions to edit the template.
         NotFound
             This template does not exist.
+
+        Returns
+        --------
+        :class:`Template`
+            The newly edited template.
         """
-        data = await self._state.http.edit_template(self.source_guild.id, self.code, kwargs)
-        self._store(data)
+        payload = {}
+
+        if name is not MISSING:
+            payload['name'] = name
+        if description is not MISSING:
+            payload['description'] = description
+
+        data = await self._state.http.edit_template(self.source_guild.id, self.code, payload)
+        return Template(state=self._state, data=data)
 
     async def delete(self) -> None:
         """|coro|

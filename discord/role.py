@@ -23,7 +23,7 @@ DEALINGS IN THE SOFTWARE.
 """
 
 from __future__ import annotations
-from typing import Any, List, Optional, TypeVar, Union, overload, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TypeVar, Union, overload, TYPE_CHECKING
 
 from .permissions import Permissions
 from .errors import InvalidArgument
@@ -42,6 +42,7 @@ if TYPE_CHECKING:
         Role as RolePayload,
         RoleTags as RoleTagPayload,
     )
+    from .types.guild import RolePositionUpdate
     from .guild import Guild
     from .member import Member
     from .state import ConnectionState
@@ -336,28 +337,21 @@ class Role(Hashable):
         else:
             roles.append(self.id)
 
-        payload = [{"id": z[0], "position": z[1]} for z in zip(roles, change_range)]
+        payload: List[RolePositionUpdate] = [{"id": z[0], "position": z[1]} for z in zip(roles, change_range)]
         await http.move_role_position(self.guild.id, payload, reason=reason)
 
-    @overload
     async def edit(
         self,
         *,
-        reason: Optional[str] = ...,
-        name: str = ...,
-        permissions: Permissions = ...,
-        colour: Union[Colour, int] = ...,
-        hoist: bool = ...,
-        mentionable: bool = ...,
-        position: int = ...,
-    ) -> None:
-        ...
-
-    @overload
-    async def edit(self) -> None:
-        ...
-
-    async def edit(self, *, reason=None, **fields) -> None:
+        name: str = MISSING,
+        permissions: Permissions = MISSING,
+        colour: Union[Colour, int] = MISSING,
+        color: Union[Colour, int] = MISSING,
+        hoist: bool = MISSING,
+        mentionable: bool = MISSING,
+        position: int = MISSING,
+        reason: Optional[str] = MISSING,
+    ) -> Optional[Role]:
         """|coro|
 
         Edits the role.
@@ -369,6 +363,9 @@ class Role(Hashable):
 
         .. versionchanged:: 1.4
             Can now pass ``int`` to ``colour`` keyword-only parameter.
+
+        .. versionchanged:: 2.0
+            Edits are no longer in-place, the newly edited role is returned instead.
 
         Parameters
         -----------
@@ -397,31 +394,39 @@ class Role(Hashable):
         InvalidArgument
             An invalid position was given or the default
             role was asked to be moved.
+
+        Returns
+        --------
+        :class:`Role`
+            The newly edited role.
         """
-
-        position = fields.get('position')
-        if position is not None:
+        if position is not MISSING:
             await self._move(position, reason=reason)
-            self.position = position
 
-        try:
-            colour = fields['colour']
-        except KeyError:
-            colour = fields.get('color', self.colour)
+        payload: Dict[str, Any] = {}
+        if color is not MISSING:
+            colour = color
 
-        if isinstance(colour, int):
-            colour = Colour(value=colour)
+        if colour is not MISSING:
+            if isinstance(colour, int):
+                payload['color'] = colour
+            else:
+                payload['color'] = colour.value
 
-        payload = {
-            'name': fields.get('name', self.name),
-            'permissions': str(fields.get('permissions', self.permissions).value),
-            'color': colour.value,
-            'hoist': fields.get('hoist', self.hoist),
-            'mentionable': fields.get('mentionable', self.mentionable),
-        }
+        if name is not MISSING:
+            payload['name'] = name
+
+        if permissions is not MISSING:
+            payload['permissions'] = permissions.value
+
+        if hoist is not MISSING:
+            payload['hoist'] = hoist
+
+        if mentionable is not MISSING:
+            payload['mentionable'] = mentionable
 
         data = await self._state.http.edit_role(self.guild.id, self.id, reason=reason, **payload)
-        self._update(data)
+        return Role(guild=self.guild, data=data, state=self._state)
 
     async def delete(self, *, reason: Optional[str] = None) -> None:
         """|coro|

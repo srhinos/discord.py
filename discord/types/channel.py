@@ -25,7 +25,7 @@ DEALINGS IN THE SOFTWARE.
 from typing import List, Literal, Optional, TypedDict, Union
 from .user import PartialUser
 from .snowflake import Snowflake
-from .threads import ThreadMetadata, ThreadMember
+from .threads import ThreadMetadata, ThreadMember, ThreadArchiveDuration
 
 
 OverwriteType = Literal[0, 1]
@@ -63,6 +63,7 @@ class _TextChannelOptional(TypedDict, total=False):
     last_message_id: Optional[Snowflake]
     last_pin_timestamp: str
     rate_limit_per_user: int
+    default_auto_archive_duration: ThreadArchiveDuration
 
 
 class TextChannel(_BaseGuildChannel, _TextChannelOptional):
@@ -78,13 +79,13 @@ VideoQualityMode = Literal[1, 2]
 
 class _VoiceChannelOptional(TypedDict, total=False):
     rtc_region: Optional[str]
-    bitrate: int
-    user_limit: int
     video_quality_mode: VideoQualityMode
 
 
 class VoiceChannel(_BaseGuildChannel, _VoiceChannelOptional):
     type: Literal[2]
+    bitrate: int
+    user_limit: int
 
 
 class CategoryChannel(_BaseGuildChannel):
@@ -97,13 +98,13 @@ class StoreChannel(_BaseGuildChannel):
 
 class _StageChannelOptional(TypedDict, total=False):
     rtc_region: Optional[str]
-    bitrate: int
-    user_limit: int
     topic: str
 
 
 class StageChannel(_BaseGuildChannel, _StageChannelOptional):
     type: Literal[13]
+    bitrate: int
+    user_limit: int
 
 
 class _ThreadChannelOptional(TypedDict, total=False):
@@ -115,7 +116,7 @@ class _ThreadChannelOptional(TypedDict, total=False):
 
 
 class ThreadChannel(_BaseChannel, _ThreadChannelOptional):
-    type: Literal[11, 12]
+    type: Literal[10, 11, 12]
     guild_id: Snowflake
     parent_id: Snowflake
     owner_id: Snowflake

@@ -41,7 +41,7 @@ FV = TypeVar('FV', bound='flag_value')
 BF = TypeVar('BF', bound='BaseFlags')
 
 
-class flag_value(Generic[BF]):
+class flag_value:
     def __init__(self, func: Callable[[Any], int]):
         self.flag = func(None)
         self.__doc__ = func.__doc__
@@ -205,7 +205,7 @@ class SystemChannelFlags(BaseFlags):
 
     @flag_value
     def premium_subscriptions(self):
-        """:class:`bool`: Returns ``True`` if the system channel is used for Nitro boosting notifications."""
+        """:class:`bool`: Returns ``True`` if the system channel is used for "Nitro boosting" notifications."""
         return 2
 
     @flag_value
@@ -286,6 +286,15 @@ class MessageFlags(BaseFlags):
         .. versionadded:: 2.0
         """
         return 32
+
+    @flag_value
+    def ephemeral(self):
+        """:class:`bool`: Returns ``True`` if the source message is ephemeral.
+
+        .. versionadded:: 2.0
+        """
+        return 64
+
 
 @fill_with_flags()
 class PublicUserFlags(BaseFlags):
@@ -515,7 +524,7 @@ class Intents(BaseFlags):
 
         - :func:`on_member_join`
         - :func:`on_member_remove`
-        - :func:`on_member_update` (nickname, roles)
+        - :func:`on_member_update`
         - :func:`on_user_update`
 
         This also corresponds to the following attributes and classes in terms of cache:
@@ -557,18 +566,34 @@ class Intents(BaseFlags):
 
     @flag_value
     def emojis(self):
-        """:class:`bool`: Whether guild emoji related events are enabled.
+        """:class:`bool`: Alias of :attr:`.emojis_and_stickers`.
+
+        .. versionchanged:: 2.0
+            Changed to an alias.
+        """
+        return 1 << 3
+
+    @alias_flag_value
+    def emojis_and_stickers(self):
+        """:class:`bool`: Whether guild emoji and sticker related events are enabled.
+
+        .. versionadded:: 2.0
 
         This corresponds to the following events:
 
         - :func:`on_guild_emojis_update`
+        - :func:`on_guild_stickers_update`
 
         This also corresponds to the following attributes and classes in terms of cache:
 
         - :class:`Emoji`
+        - :class:`GuildSticker`
         - :meth:`Client.get_emoji`
+        - :meth:`Client.get_sticker`
         - :meth:`Client.emojis`
+        - :meth:`Client.stickers`
         - :attr:`Guild.emojis`
+        - :attr:`Guild.stickers`
         """
         return 1 << 3
 
@@ -625,6 +650,10 @@ class Intents(BaseFlags):
         - :attr:`VoiceChannel.members`
         - :attr:`VoiceChannel.voice_states`
         - :attr:`Member.voice`
+
+        .. note::
+
+            This intent is required to connect to voice.
         """
         return 1 << 7
 
@@ -634,7 +663,7 @@ class Intents(BaseFlags):
 
         This corresponds to the following events:
 
-        - :func:`on_member_update` (activities, status)
+        - :func:`on_presence_update`
 
         This also corresponds to the following attributes and classes in terms of cache:
 

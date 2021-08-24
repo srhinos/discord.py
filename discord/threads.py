@@ -23,6 +23,7 @@ DEALINGS IN THE SOFTWARE.
 """
 
 from __future__ import annotations
+
 from typing import Callable, Dict, Iterable, List, Optional, Union, TYPE_CHECKING
 import time
 import asyncio
@@ -45,10 +46,11 @@ if TYPE_CHECKING:
         ThreadMetadata,
         ThreadArchiveDuration,
     )
+    from .types.snowflake import SnowflakeList
     from .guild import Guild
-    from .channel import TextChannel
+    from .channel import TextChannel, CategoryChannel
     from .member import Member
-    from .message import Message
+    from .message import Message, PartialMessage
     from .abc import Snowflake, SnowflakeTime
     from .role import Role
     from .permissions import Permissions
@@ -139,8 +141,8 @@ class Thread(Messageable, Hashable):
         'archive_timestamp',
     )
 
-    def __init__(self, *, guild: Guild, data: ThreadPayload):
-        self._state: ConnectionState = guild._state
+    def __init__(self, *, guild: Guild, state: ConnectionState, data: ThreadPayload):
+        self._state: ConnectionState = state
         self.guild = guild
         self._members: Dict[int, ThreadMember] = {}
         self._from_data(data)
@@ -165,6 +167,8 @@ class Thread(Messageable, Hashable):
         self._type = try_enum(ChannelType, data['type'])
         self.last_message_id = _get_as_snowflake(data, 'last_message_id')
         self.slowmode_delay = data.get('rate_limit_per_user', 0)
+        self.message_count = data['message_count']
+        self.member_count = data['member_count']
         self._unroll_metadata(data['thread_metadata'])
 
         try:
@@ -187,20 +191,42 @@ class Thread(Messageable, Hashable):
         except KeyError:
             pass
 
+        self.slowmode_delay = data.get('rate_limit_per_user', 0)
+
         try:
             self._unroll_metadata(data['thread_metadata'])
         except KeyError:
             pass
 
     @property
+    def type(self) -> ChannelType:
+        """:class:`ChannelType`: The channel's Discord type."""
+        return self._type
+
+    @property
     def parent(self) -> Optional[TextChannel]:
         """Optional[:class:`TextChannel`]: The parent channel this thread belongs to."""
-        return self.guild.get_channel(self.parent_id)
+        return self.guild.get_channel(self.parent_id)  # type: ignore
 
     @property
     def owner(self) -> Optional[Member]:
         """Optional[:class:`Member`]: The member this thread belongs to."""
         return self.guild.get_member(self.owner_id)
+
+    @property
+    def mention(self) -> str:
+        """:class:`str`: The string that allows you to mention the thread."""
+        return f'<#{self.id}>'
+
+    @property
+    def members(self) -> List[ThreadMember]:
+        """List[:class:`ThreadMember`]: A list of thread members in this thread.
+
+        This requires :attr:`Intents.members` to be properly filled. Most of the time however,
+        this data is not provided by the gateway and a call to :meth:`fetch_members` is
+        needed.
+        """
+        return list(self._members.values())
 
     @property
     def last_message(self) -> Optional[Message]:
@@ -223,6 +249,26 @@ class Thread(Messageable, Hashable):
         """
         return self._state._get_message(self.last_message_id) if self.last_message_id else None
 
+    @property
+    def category(self) -> Optional[CategoryChannel]:
+        """The category channel the parent channel belongs to, if applicable.
+
+        Raises
+        -------
+        ClientException
+            The parent channel was not cached and returned ``None``.
+
+        Returns
+        -------
+        Optional[:class:`CategoryChannel`]
+            The parent channel's category.
+        """
+
+        parent = self.parent
+        if parent is None:
+            raise ClientException('Parent channel not found')
+        return parent.category
+    
     @property
     def category_id(self) -> Optional[int]:
         """The category channel ID the parent channel belongs to, if applicable.
@@ -258,6 +304,15 @@ class Thread(Messageable, Hashable):
         i.e. :meth:`.TextChannel.is_news` is ``True``.
         """
         return self._type is ChannelType.news_thread
+
+    def is_nsfw(self) -> bool:
+        """:class:`bool`: Whether the thread is NSFW or not.
+
+        An NSFW thread is a thread that has a parent that is an NSFW channel,
+        i.e. :meth:`.TextChannel.is_nsfw` is ``True``.
+        """
+        parent = self.parent
+        return parent is not None and parent.is_nsfw()
 
     def permissions_for(self, obj: Union[Member, Role], /) -> Permissions:
         """Handles permission resolution for the :class:`~discord.Member`
@@ -340,13 +395,13 @@ class Thread(Messageable, Hashable):
         if len(messages) > 100:
             raise ClientException('Can only bulk delete messages up to 100 messages')
 
-        message_ids = [m.id for m in messages]
+        message_ids: SnowflakeList = [m.id for m in messages]
         await self._state.http.delete_messages(self.id, message_ids)
 
     async def purge(
         self,
         *,
-        limit: int = 100,
+        limit: Optional[int] = 100,
         check: Callable[[Message], bool] = MISSING,
         before: Optional[SnowflakeTime] = None,
         after: Optional[SnowflakeTime] = None,
@@ -468,7 +523,7 @@ class Thread(Messageable, Hashable):
         locked: bool = MISSING,
         slowmode_delay: int = MISSING,
         auto_archive_duration: ThreadArchiveDuration = MISSING,
-    ):
+    ) -> Thread:
         """|coro|
 
         Edits the thread.
@@ -489,7 +544,7 @@ class Thread(Messageable, Hashable):
         locked: :class:`bool`
             Whether to lock the thread or not.
         auto_archive_duration: :class:`int`
-            The new duration to auto archive threads for inactivity.
+            The new duration in minutes before a thread is automatically archived for inactivity.
             Must be one of ``60``, ``1440``, ``4320``, or ``10080``.
         slowmode_delay: :class:`int`
             Specifies the slowmode rate limit for user in this thread, in seconds.
@@ -501,6 +556,11 @@ class Thread(Messageable, Hashable):
             You do not have permissions to edit the thread.
         HTTPException
             Editing the thread failed.
+
+        Returns
+        --------
+        :class:`Thread`
+            The newly edited thread.
         """
         payload = {}
         if name is not MISSING:
@@ -514,7 +574,9 @@ class Thread(Messageable, Hashable):
         if slowmode_delay is not MISSING:
             payload['rate_limit_per_user'] = slowmode_delay
 
-        await self._state.http.edit_channel(self.id, **payload)
+        data = await self._state.http.edit_channel(self.id, **payload)
+        # The data payload will always be a Thread payload
+        return Thread(data=data, state=self._state, guild=self.guild)  # type: ignore
 
     async def join(self):
         """|coro|
@@ -592,6 +654,28 @@ class Thread(Messageable, Hashable):
         """
         await self._state.http.remove_user_from_thread(self.id, user.id)
 
+    async def fetch_members(self) -> List[ThreadMember]:
+        """|coro|
+
+        Retrieves all :class:`ThreadMember` that are in this thread.
+
+        This requires :attr:`Intents.members` to get information about members
+        other than yourself.
+
+        Raises
+        -------
+        HTTPException
+            Retrieving the members failed.
+
+        Returns
+        --------
+        List[:class:`ThreadMember`]
+            All thread members in the thread.
+        """
+
+        members = await self._state.http.get_thread_members(self.id)
+        return [ThreadMember(parent=self, data=data) for data in members]
+
     async def delete(self):
         """|coro|
 
@@ -607,6 +691,29 @@ class Thread(Messageable, Hashable):
             Deleting the thread failed.
         """
         await self._state.http.delete_channel(self.id)
+
+    def get_partial_message(self, message_id: int, /) -> PartialMessage:
+        """Creates a :class:`PartialMessage` from the message ID.
+
+        This is useful if you want to work with a message and only have its ID without
+        doing an unnecessary API call.
+
+        .. versionadded:: 2.0
+
+        Parameters
+        ------------
+        message_id: :class:`int`
+            The message ID to create a partial message for.
+
+        Returns
+        ---------
+        :class:`PartialMessage`
+            The partial message.
+        """
+
+        from .message import PartialMessage
+
+        return PartialMessage(channel=self, id=message_id)
 
     def _add_member(self, member: ThreadMember) -> None:
         self._members[member.id] = member
