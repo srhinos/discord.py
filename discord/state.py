@@ -587,7 +587,7 @@ class ConnectionState:
 
         for pm in data.get('private_channels', []):
             factory, _ = _channel_factory(pm['type'])
-            self._add_private_channel(factory(me=user, data=pm, state=self))
+            self._add_private_channel(factory(me=self.user, data=pm, state=self))
 
         self.dispatch('connect')
         self._ready_task = asyncio.create_task(self._delay_ready())
