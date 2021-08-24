@@ -37,15 +37,14 @@ from .enums import DefaultAvatar
 from .flags import PublicUserFlags
 from .utils import snowflake_time, _bytes_to_base64_data, MISSING
 
-if TYPE_CHECKING:
-    from datetime import datetime
+from datetime import datetime
 
-    from .channel import DMChannel
-    from .guild import Guild
-    from .message import Message
-    from .state import ConnectionState
-    from .types.channel import DMChannel as DMChannelPayload
-    from .types.user import User as UserPayload
+from .channel import DMChannel
+from .guild import Guild
+from .message import Message
+from .state import ConnectionState
+from .types.channel import DMChannel as DMChannelPayload
+from .types.user import User as UserPayload
 
 
 __all__ = (
