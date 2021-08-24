@@ -524,16 +524,16 @@ class ConnectionState:
                                 self.dispatch('guild_available', guild)
                             else:
                                 self.dispatch('guild_join', guild)
-            for guild, future in states:
-                try:
-                    await asyncio.wait_for(future, timeout=5.0)
-                except asyncio.TimeoutError:
-                    _log.warning('Shard ID %s timed out waiting for chunks for guild_id %s.', guild.shard_id, guild.id)
+                for guild, future in states:
+                    try:
+                        await asyncio.wait_for(future, timeout=5.0)
+                    except asyncio.TimeoutError:
+                        _log.warning('Shard ID %s timed out waiting for chunks for guild_id %s.', guild.shard_id, guild.id)
 
-                if guild.unavailable is False:
-                    self.dispatch('guild_available', guild)
-                else:
-                    self.dispatch('guild_join', guild)
+                    if guild.unavailable is False:
+                        self.dispatch('guild_available', guild)
+                    else:
+                        self.dispatch('guild_join', guild)
 
             # remove the state
             try:
@@ -543,7 +543,7 @@ class ConnectionState:
 
             # call GUILD_SYNC after we're done chunking
             if not self.is_bot:
-                log.info('Requesting GUILD_SYNC for %s guilds', len(self.guilds))
+                _log.info('Requesting GUILD_SYNC for %s guilds', len(self.guilds))
                 await self.syncer([s.id for s in self.guilds])
 
         except asyncio.CancelledError:
@@ -587,7 +587,7 @@ class ConnectionState:
 
         for pm in data.get('private_channels', []):
             factory, _ = _channel_factory(pm['type'])
-            self._add_private_channel(factory(me=self.user, data=pm, state=self))
+            self._add_private_channel(factory(me=user, data=pm, state=self))
 
         self.dispatch('connect')
         self._ready_task = asyncio.create_task(self._delay_ready())
