@@ -59,7 +59,7 @@ from .ui.view import ViewStore, View
 from .stage_instance import StageInstance
 from .threads import Thread, ThreadMember
 from .sticker import GuildSticker
-from .call import CallMessage
+from .calls import CallMessage
 
 if TYPE_CHECKING:
     from .abc import PrivateChannel
