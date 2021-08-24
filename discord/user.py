@@ -24,28 +24,12 @@ DEALINGS IN THE SOFTWARE.
 from collections import namedtuple
 from typing import Any, Dict, List, Optional, Type, TypeVar, TYPE_CHECKING
 import discord.abc
-from .flags import PublicUserFlags
 from .utils import snowflake_time, _bytes_to_base64_data, parse_time
 from .enums import DefaultAvatar, RelationshipType, UserFlags, HypeSquadHouse, PremiumType, try_enum
 from .errors import ClientException
-from .utils import snowflake_time, _bytes_to_base64_data
-from .enums import DefaultAvatar
 from .colour import Colour
 from .asset import Asset
-from .colour import Colour
-from .enums import DefaultAvatar
 from .flags import PublicUserFlags
-from .utils import snowflake_time, _bytes_to_base64_data, MISSING
-
-if TYPE_CHECKING:
-    from datetime import datetime
-
-    from .channel import DMChannel
-    from .guild import Guild
-    from .message import Message
-    from .state import ConnectionState
-    from .types.channel import DMChannel as DMChannelPayload
-    from .types.user import User as UserPayload
 
 
 __all__ = (
@@ -129,7 +113,7 @@ class BaseUser(_UserTag):
         discriminator: str
         bot: bool
         system: bool
-        _state: ConnectionState
+        _state
         _avatar: Optional[str]
         _banner: Optional[str]
         _accent_colour: Optional[str]
@@ -157,7 +141,7 @@ class BaseUser(_UserTag):
     def __hash__(self) -> int:
         return self.id >> 22
 
-    def _update(self, data: UserPayload) -> None:
+    def _update(self, data) -> None:
         self.name = data['username']
         self.id = int(data['id'])
         self.discriminator = data['discriminator']
@@ -283,7 +267,7 @@ class BaseUser(_UserTag):
         return f'<@{self.id}>'
 
     @property
-    def created_at(self) -> datetime:
+    def created_at(self):
         """:class:`datetime.datetime`: Returns the user's creation time in UTC.
 
         This is when the user's Discord account was created.
@@ -312,7 +296,7 @@ class BaseUser(_UserTag):
         """
         return self.avatar
 
-    def mentioned_in(self, message: Message) -> bool:
+    def mentioned_in(self, message) -> bool:
         """Checks if the user is mentioned in the specified message.
 
         Parameters
@@ -394,7 +378,7 @@ class ClientUser(BaseUser):
             f' bot={self.bot} verified={self.verified} mfa_enabled={self.mfa_enabled}>'
         )
 
-    def _update(self, data: UserPayload) -> None:
+    def _update(self, data) -> None:
         super()._update(data)
         # There's actually an Optional[str] phone field as well but I won't use it
         self.verified = data.get('verified', False)
@@ -450,7 +434,7 @@ class ClientUser(BaseUser):
         """
         return [r.user for r in self._relationships.values() if r.type is RelationshipType.blocked]
 
-    async def edit(self, **fields) -> ClientUser:
+    async def edit(self, **fields):
         """|coro|
 
         Edits the current profile of the client.
@@ -527,7 +511,7 @@ class ClientUser(BaseUser):
 
             await http.change_hypesquad_house(value)
 
-        data: UserPayload = await http.edit_profile(**args)
+        data = await http.edit_profile(**args)
         if not_bot_account:
             self.email = data['email']
             try:
@@ -540,7 +524,6 @@ class ClientUser(BaseUser):
         self._update(data)
 
         return ClientUser(state=self._state, data=data)
-
 
     async def create_group(self, *recipients):
         r"""|coro|
@@ -683,6 +666,7 @@ class ClientUser(BaseUser):
         data = await self._state.http.edit_settings(**payload)
         return data
 
+
 class User(BaseUser, discord.abc.Messageable):
     """Represents a Discord user.
 
@@ -735,17 +719,17 @@ class User(BaseUser, discord.abc.Messageable):
             pass
 
     @classmethod
-    def _copy(cls, user: User):
+    def _copy(cls, user):
         self = super()._copy(user)
         self._stored = False
         return self
 
-    async def _get_channel(self) -> DMChannel:
+    async def _get_channel(self):
         ch = await self.create_dm()
         return ch
 
     @property
-    def dm_channel(self) -> Optional[DMChannel]:
+    def dm_channel(self):
         """Optional[:class:`DMChannel`]: Returns the channel associated with this user if it exists.
 
         If this returns ``None``, you can create a DM channel by calling the
@@ -754,7 +738,7 @@ class User(BaseUser, discord.abc.Messageable):
         return self._state._get_private_channel_by_user(self.id)
 
     @property
-    def mutual_guilds(self) -> List[Guild]:
+    def mutual_guilds(self):
         """List[:class:`Guild`]: The guilds that the user shares with the client.
 
         .. note::
@@ -765,7 +749,7 @@ class User(BaseUser, discord.abc.Messageable):
         """
         return [guild for guild in self._state._guilds.values() if guild.get_member(self.id)]
 
-    async def create_dm(self) -> DMChannel:
+    async def create_dm(self):
         """|coro|
 
         Creates a :class:`DMChannel` with this user.
@@ -783,7 +767,7 @@ class User(BaseUser, discord.abc.Messageable):
             return found
 
         state = self._state
-        data: DMChannelPayload = await state.http.start_private_message(self.id)
+        data = await state.http.start_private_message(self.id)
         return state.add_dm_channel(data)
 
     @property
