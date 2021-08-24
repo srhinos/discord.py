@@ -37,14 +37,15 @@ from .enums import DefaultAvatar
 from .flags import PublicUserFlags
 from .utils import snowflake_time, _bytes_to_base64_data, MISSING
 
-from datetime import datetime
+if TYPE_CHECKING:
+    from datetime import datetime
 
-from .channel import DMChannel
-from .guild import Guild
-from .message import Message
-from .state import ConnectionState
-from .types.channel import DMChannel as DMChannelPayload
-from .types.user import User as UserPayload
+    from .channel import DMChannel
+    from .guild import Guild
+    from .message import Message
+    from .state import ConnectionState
+    from .types.channel import DMChannel as DMChannelPayload
+    from .types.user import User as UserPayload
 
 
 __all__ = (
@@ -134,7 +135,7 @@ class BaseUser(_UserTag):
         _accent_colour: Optional[str]
         _public_flags: int
 
-    def __init__(self, *, state: ConnectionState, data: UserPayload) -> None:
+    def __init__(self, *, state, data) -> None:
         self._state = state
         self._update(data)
 
@@ -383,7 +384,7 @@ class ClientUser(BaseUser):
         mfa_enabled: bool
         _flags: int
 
-    def __init__(self, *, state: ConnectionState, data: UserPayload) -> None:
+    def __init__(self, *, state, data) -> None:
         super().__init__(state=state, data=data)
         self._relationships = {}
 
@@ -719,7 +720,7 @@ class User(BaseUser, discord.abc.Messageable):
 
     __slots__ = ('_stored',)
 
-    def __init__(self, *, state: ConnectionState, data: UserPayload) -> None:
+    def __init__(self, *, state, data) -> None:
         super().__init__(state=state, data=data)
         self._stored: bool = False
 
