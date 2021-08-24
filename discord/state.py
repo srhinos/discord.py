@@ -583,7 +583,7 @@ class ConnectionState:
             except KeyError:
                 continue
             else:
-                user._relationships[r_id] = Relationship(state=self, data=relationship)
+                self.user._relationships[r_id] = Relationship(state=self, data=relationship)
 
         for pm in data.get('private_channels', []):
             factory, _ = _channel_factory(pm['type'])
