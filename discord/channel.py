@@ -1892,7 +1892,7 @@ class DMChannel(discord.abc.Messageable, Hashable):
         data = await self._state.http.edit_group(self.id, **fields)
         self._update_group(data)
 
-    def get_partial_message(self, message_id):
+    def get_partial_message(self, message_id: int, /) -> PartialMessage:
         """Creates a :class:`PartialMessage` from the message ID.
 
         This is useful if you want to work with a message and only have its ID without
