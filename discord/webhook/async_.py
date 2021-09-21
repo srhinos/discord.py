@@ -425,7 +425,7 @@ def handle_message_parameters(
     content: Optional[str] = MISSING,
     *,
     username: str = MISSING,
-    avatar_url: str = MISSING,
+    avatar_url: Any = MISSING,
     tts: bool = False,
     ephemeral: bool = False,
     file: File = MISSING,
@@ -937,12 +937,12 @@ class Webhook(BaseWebhook):
         return f'<Webhook id={self.id!r}>'
 
     @property
-    def url(self):
+    def url(self) -> str:
         """:class:`str` : Returns the webhook's url."""
         return f'https://discord.com/api/webhooks/{self.id}/{self.token}'
 
     @classmethod
-    def partial(cls, id: int, token: str, *, session: aiohttp.ClientSession, bot_token: Optional[str] = None):
+    def partial(cls, id: int, token: str, *, session: aiohttp.ClientSession, bot_token: Optional[str] = None) -> Webhook:
         """Creates a partial :class:`Webhook`.
 
         Parameters
@@ -978,7 +978,7 @@ class Webhook(BaseWebhook):
         return cls(data, session, token=bot_token)
 
     @classmethod
-    def from_url(cls, url: str, *, session: aiohttp.ClientSession, bot_token: Optional[str] = None):
+    def from_url(cls, url: str, *, session: aiohttp.ClientSession, bot_token: Optional[str] = None) -> Webhook:
         """Creates a partial :class:`Webhook` from a webhook URL.
 
         Parameters
@@ -1017,7 +1017,7 @@ class Webhook(BaseWebhook):
         return cls(data, session, token=bot_token)  # type: ignore
 
     @classmethod
-    def _as_follower(cls, data, *, channel, user):
+    def _as_follower(cls, data, *, channel, user) -> Webhook:
         name = f"{channel.guild} #{channel}"
         feed: WebhookPayload = {
             'id': data['webhook_id'],
@@ -1033,7 +1033,7 @@ class Webhook(BaseWebhook):
         return cls(feed, session=session, state=state, token=state.http.token)
 
     @classmethod
-    def from_state(cls, data, state):
+    def from_state(cls, data, state) -> Webhook:
         session = state.http._HTTPClient__session
         return cls(data, session=session, state=state, token=state.http.token)
 
@@ -1210,7 +1210,7 @@ class Webhook(BaseWebhook):
         content: str = MISSING,
         *,
         username: str = MISSING,
-        avatar_url: str = MISSING,
+        avatar_url: Any = MISSING,
         tts: bool = MISSING,
         ephemeral: bool = MISSING,
         file: File = MISSING,
@@ -1230,7 +1230,7 @@ class Webhook(BaseWebhook):
         content: str = MISSING,
         *,
         username: str = MISSING,
-        avatar_url: str = MISSING,
+        avatar_url: Any = MISSING,
         tts: bool = MISSING,
         ephemeral: bool = MISSING,
         file: File = MISSING,
@@ -1249,7 +1249,7 @@ class Webhook(BaseWebhook):
         content: str = MISSING,
         *,
         username: str = MISSING,
-        avatar_url: str = MISSING,
+        avatar_url: Any = MISSING,
         tts: bool = False,
         ephemeral: bool = False,
         file: File = MISSING,
@@ -1286,9 +1286,10 @@ class Webhook(BaseWebhook):
         username: :class:`str`
             The username to send with this message. If no username is provided
             then the default username for the webhook is used.
-        avatar_url: Union[:class:`str`, :class:`Asset`]
+        avatar_url: :class:`str`
             The avatar URL to send with this message. If no avatar URL is provided
-            then the default avatar for the webhook is used.
+            then the default avatar for the webhook is used. If this is not a
+            string then it is explicitly cast using ``str``.
         tts: :class:`bool`
             Indicates if the message should be sent using text-to-speech.
         ephemeral: :class:`bool`
@@ -1559,7 +1560,7 @@ class Webhook(BaseWebhook):
             self._state.store_view(view, message_id)
         return message
 
-    async def delete_message(self, message_id: int):
+    async def delete_message(self, message_id: int, /) -> None:
         """|coro|
 
         Deletes a message owned by this webhook.

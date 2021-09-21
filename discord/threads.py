@@ -111,6 +111,9 @@ class Thread(Messageable, Hashable):
         Whether the thread is archived.
     locked: :class:`bool`
         Whether the thread is locked.
+    invitable: :class:`bool`
+        Whether non-moderators can add other non-moderators to this thread.
+        This is always ``True`` for public threads.
     archiver_id: Optional[:class:`int`]
         The user's ID that archived this thread.
     auto_archive_duration: :class:`int`
@@ -136,6 +139,7 @@ class Thread(Messageable, Hashable):
         'me',
         'locked',
         'archived',
+        'invitable',
         'archiver_id',
         'auto_archive_duration',
         'archive_timestamp',
@@ -184,6 +188,7 @@ class Thread(Messageable, Hashable):
         self.auto_archive_duration = data['auto_archive_duration']
         self.archive_timestamp = parse_time(data['archive_timestamp'])
         self.locked = data.get('locked', False)
+        self.invitable = data.get('invitable', True)
 
     def _update(self, data):
         try:
@@ -521,6 +526,7 @@ class Thread(Messageable, Hashable):
         name: str = MISSING,
         archived: bool = MISSING,
         locked: bool = MISSING,
+        invitable: bool = MISSING,
         slowmode_delay: int = MISSING,
         auto_archive_duration: ThreadArchiveDuration = MISSING,
     ) -> Thread:
@@ -543,6 +549,9 @@ class Thread(Messageable, Hashable):
             Whether to archive the thread or not.
         locked: :class:`bool`
             Whether to lock the thread or not.
+        invitable: :class:`bool`
+            Whether non-moderators can add other non-moderators to this thread.
+            Only available for private threads.
         auto_archive_duration: :class:`int`
             The new duration in minutes before a thread is automatically archived for inactivity.
             Must be one of ``60``, ``1440``, ``4320``, or ``10080``.
@@ -571,6 +580,8 @@ class Thread(Messageable, Hashable):
             payload['auto_archive_duration'] = auto_archive_duration
         if locked is not MISSING:
             payload['locked'] = locked
+        if invitable is not MISSING:
+            payload['invitable'] = invitable
         if slowmode_delay is not MISSING:
             payload['rate_limit_per_user'] = slowmode_delay
 
@@ -583,10 +594,8 @@ class Thread(Messageable, Hashable):
 
         Joins this thread.
 
-        You must have :attr:`~Permissions.send_messages` and :attr:`~Permissions.use_threads`
-        to join a public thread. If the thread is private then :attr:`~Permissions.send_messages`
-        and either :attr:`~Permissions.use_private_threads` or :attr:`~Permissions.manage_messages`
-        is required to join the thread.
+        You must have :attr:`~Permissions.send_messages_in_threads` to join a thread.
+        If the thread is private, :attr:`~Permissions.manage_threads` is also needed.
 
         Raises
         -------
