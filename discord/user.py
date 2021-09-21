@@ -305,7 +305,7 @@ class BaseUser(_UserTag):
         """
         return self.avatar
 
-    def mentioned_in(self, message: Message) -> bool:
+    def mentioned_in(self, message) -> bool:
         """Checks if the user is mentioned in the specified message.
 
         Parameters
